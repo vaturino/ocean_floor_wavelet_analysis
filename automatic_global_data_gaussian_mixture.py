@@ -31,7 +31,7 @@ downsample_factor = 1
 # PATHS & ARGV SETUP
 # ======================================================
 system = str(sys.argv[1])
-json_folder = '/Users/valeturino/postdoc_local/wavelet_analysis/json_folder'
+json_folder = '/Users/valeturino/postdoc_local/seafloor_json_mapping_test'
 json_file = os.path.join(json_folder, f'{system}.json')
 
 # New unified output infrastructure
