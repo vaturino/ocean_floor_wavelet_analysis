@@ -78,8 +78,6 @@ def get_hinged_topo_cmap(z_min, z_max, hinge_deep=-1500, hinge_land=0):
     # Normalize hinges to the [0, 1] range of the colormap
     def norm(z): return (z - z_min) / (z_max - z_min)
 
-    # 1. Adjust hinge points to be within the *actual* data range (z_min, z_max)
-    # This prevents normalized hinge values from going outside [0, 1]
     _hinge_deep = np.clip(hinge_deep, z_min, z_max)
     _hinge_land = np.clip(hinge_land, z_min, z_max)
 
@@ -87,69 +85,139 @@ def get_hinged_topo_cmap(z_min, z_max, hinge_deep=-1500, hinge_land=0):
     h1 = norm(_hinge_deep)
     h2 = norm(_hinge_land)
 
-    # Ensure h1 <= h2. If original hinge_deep was > hinge_land AND they are both in range
-    # e.g., hinge_deep = -100, hinge_land = -500, then h1 > h2.
-    # The segments should still be ordered by normalized value.
     if h1 > h2:
-        h1, h2 = h2, h1 # Swap if necessary to keep h1 first
+        h1, h2 = h2, h1 
 
-    # Prepare lists to collect all (position, color) points
     positions = []
     colors = []
-    n_points_per_segment = 128 # Resolution for each segment
+    n_points_per_segment = 128 
 
     # Abyssal Segment (from 0.0 to h1)
-    # Generate points for the deep segment (from 0 to h1)
     x_deep = np.linspace(0.0, h1, n_points_per_segment)
     colors_deep_arr = cmo.deep(np.linspace(0.2, 0.8, n_points_per_segment))
     positions.extend(x_deep)
     colors.extend(colors_deep_arr)
 
     # Shelf/Slope Segment (from h1 to h2)
-    # Generate points for the shelf segment (from h1 to h2)
-    # We exclude the first point to avoid exact duplicates at `h1` as it's already added by x_deep's end.
-    # If h1 == h2, this segment will be empty after slicing.
-    if h1 < h2: # Only add if there's a distinct segment
-        x_shelf = np.linspace(h1, h2, n_points_per_segment)[1:] # [1:] to exclude start (h1)
-        colors_shelf_arr = cmo.ice(np.linspace(0.3, 0.9, n_points_per_segment))[1:] # [1:] corresponding colors
+    if h1 < h2: 
+        x_shelf = np.linspace(h1, h2, n_points_per_segment)[1:] 
+        colors_shelf_arr = cmo.ice(np.linspace(0.3, 0.9, n_points_per_segment))[1:] 
         positions.extend(x_shelf)
         colors.extend(colors_shelf_arr)
 
     # Land Segment (from h2 to 1.0)
-    # Generate points for the land segment (from h2 to 1.0)
-    # We exclude the first point to avoid exact duplicates at `h2` as it's already added by x_shelf's end.
-    if h2 < 1.0: # Only add if there's a distinct segment
-        x_land = np.linspace(h2, 1.0, n_points_per_segment)[1:] # [1:] to exclude start (h2)
-        colors_land_arr = cmo.topo(np.linspace(0.5, 1.0, n_points_per_segment))[1:] # [1:] corresponding colors
+    if h2 < 1.0: 
+        x_land = np.linspace(h2, 1.0, n_points_per_segment)[1:] 
+        colors_land_arr = cmo.topo(np.linspace(0.5, 1.0, n_points_per_segment))[1:] 
         positions.extend(x_land)
         colors.extend(colors_land_arr)
 
-    # Combine positions and colors into a DataFrame for sorting and duplicate removal
+    # Combine positions and colors into a DataFrame
     combined_df = pd.DataFrame({'pos': positions, 'color': colors})
-
-    # Sort by position to ensure monotonicity
     combined_df.sort_values(by='pos', inplace=True)
-
-    # Remove duplicates based on 'pos', keeping the last color encountered at that position
-    # This is crucial for fixing 'x in increasing order' error
     combined_df.drop_duplicates(subset=['pos'], keep='last', inplace=True)
 
-    # Ensure colormap starts exactly at 0.0 and ends exactly at 1.0
-    if combined_df['pos'].iloc[0] > 0.0:
-        # Ensure the color at 0.0 is explicitly defined. If not, use the first color defined.
-        first_color = combined_df['color'].iloc[0] if not combined_df.empty else 'gray'
-        combined_df = pd.concat([pd.DataFrame([{'pos': 0.0, 'color': first_color}]), combined_df]).reset_index(drop=True)
-    if combined_df['pos'].iloc[-1] < 1.0:
-        # Ensure the color at 1.0 is explicitly defined. If not, use the last color defined.
-        last_color = combined_df['color'].iloc[-1] if not combined_df.empty else 'gray'
-        combined_df = pd.concat([combined_df, pd.DataFrame([{'pos': 1.0, 'color': last_color}]).reset_index(drop=True)])
+    # ==============================================================================
+    # CRITICAL FIX: Explicitly copy, snap, and force boundaries to eliminate float drift
+    # ==============================================================================
+    # Adding .copy() makes this array fully writable and independent of the DataFrame
+    pos_array = combined_df['pos'].values.copy() 
+    color_list = list(combined_df['color'].values)
 
+    # Force strict alignment to 0.0 and 1.0 bounds safely now
+    pos_array[0] = 0.0
+    pos_array[-1] = 1.0
 
-    # If, after processing, we have fewer than 2 unique points, return a fallback colormap
-    if len(combined_df) < 2:
+    # Safety fall-back if dataframe size collapsed unexpectedly
+    if len(pos_array) < 2:
         return mcolors.LinearSegmentedColormap.from_list('fallback_cmap', [(0, 'gray'), (1, 'gray')])
 
-    return mcolors.LinearSegmentedColormap.from_list('hinged_topo', list(zip(combined_df['pos'], combined_df['color'])))
+    return mcolors.LinearSegmentedColormap.from_list('hinged_topo', list(zip(pos_array, color_list)))
+
+# def get_hinged_topo_cmap(z_min, z_max, hinge_deep=-1500, hinge_land=0):
+#     """
+#     Creates a custom bathymetry/topography colormap with specific
+#     color transitions at z=hinge_deep and z=hinge_land.
+#     """
+#     # Handle cases where z_min and z_max are identical (flat data)
+#     if z_max == z_min:
+#         return mcolors.LinearSegmentedColormap.from_list('flat_color', [(0, 'gray'), (1, 'gray')])
+
+#     # Normalize hinges to the [0, 1] range of the colormap
+#     def norm(z): return (z - z_min) / (z_max - z_min)
+
+#     # 1. Adjust hinge points to be within the *actual* data range (z_min, z_max)
+#     # This prevents normalized hinge values from going outside [0, 1]
+#     _hinge_deep = np.clip(hinge_deep, z_min, z_max)
+#     _hinge_land = np.clip(hinge_land, z_min, z_max)
+
+#     # Calculate normalized positions
+#     h1 = norm(_hinge_deep)
+#     h2 = norm(_hinge_land)
+
+#     # Ensure h1 <= h2. If original hinge_deep was > hinge_land AND they are both in range
+#     # e.g., hinge_deep = -100, hinge_land = -500, then h1 > h2.
+#     # The segments should still be ordered by normalized value.
+#     if h1 > h2:
+#         h1, h2 = h2, h1 # Swap if necessary to keep h1 first
+
+#     # Prepare lists to collect all (position, color) points
+#     positions = []
+#     colors = []
+#     n_points_per_segment = 128 # Resolution for each segment
+
+#     # Abyssal Segment (from 0.0 to h1)
+#     # Generate points for the deep segment (from 0 to h1)
+#     x_deep = np.linspace(0.0, h1, n_points_per_segment)
+#     colors_deep_arr = cmo.deep(np.linspace(0.2, 0.8, n_points_per_segment))
+#     positions.extend(x_deep)
+#     colors.extend(colors_deep_arr)
+
+#     # Shelf/Slope Segment (from h1 to h2)
+#     # Generate points for the shelf segment (from h1 to h2)
+#     # We exclude the first point to avoid exact duplicates at `h1` as it's already added by x_deep's end.
+#     # If h1 == h2, this segment will be empty after slicing.
+#     if h1 < h2: # Only add if there's a distinct segment
+#         x_shelf = np.linspace(h1, h2, n_points_per_segment)[1:] # [1:] to exclude start (h1)
+#         colors_shelf_arr = cmo.ice(np.linspace(0.3, 0.9, n_points_per_segment))[1:] # [1:] corresponding colors
+#         positions.extend(x_shelf)
+#         colors.extend(colors_shelf_arr)
+
+#     # Land Segment (from h2 to 1.0)
+#     # Generate points for the land segment (from h2 to 1.0)
+#     # We exclude the first point to avoid exact duplicates at `h2` as it's already added by x_shelf's end.
+#     if h2 < 1.0: # Only add if there's a distinct segment
+#         x_land = np.linspace(h2, 1.0, n_points_per_segment)[1:] # [1:] to exclude start (h2)
+#         colors_land_arr = cmo.topo(np.linspace(0.5, 1.0, n_points_per_segment))[1:] # [1:] corresponding colors
+#         positions.extend(x_land)
+#         colors.extend(colors_land_arr)
+
+#     # Combine positions and colors into a DataFrame for sorting and duplicate removal
+#     combined_df = pd.DataFrame({'pos': positions, 'color': colors})
+
+#     # Sort by position to ensure monotonicity
+#     combined_df.sort_values(by='pos', inplace=True)
+
+#     # Remove duplicates based on 'pos', keeping the last color encountered at that position
+#     # This is crucial for fixing 'x in increasing order' error
+#     combined_df.drop_duplicates(subset=['pos'], keep='last', inplace=True)
+
+#     # Ensure colormap starts exactly at 0.0 and ends exactly at 1.0
+#     if combined_df['pos'].iloc[0] > 0.0:
+#         # Ensure the color at 0.0 is explicitly defined. If not, use the first color defined.
+#         first_color = combined_df['color'].iloc[0] if not combined_df.empty else 'gray'
+#         combined_df = pd.concat([pd.DataFrame([{'pos': 0.0, 'color': first_color}]), combined_df]).reset_index(drop=True)
+#     if combined_df['pos'].iloc[-1] < 1.0:
+#         # Ensure the color at 1.0 is explicitly defined. If not, use the last color defined.
+#         last_color = combined_df['color'].iloc[-1] if not combined_df.empty else 'gray'
+#         combined_df = pd.concat([combined_df, pd.DataFrame([{'pos': 1.0, 'color': last_color}]).reset_index(drop=True)])
+
+
+#     # If, after processing, we have fewer than 2 unique points, return a fallback colormap
+#     if len(combined_df) < 2:
+#         return mcolors.LinearSegmentedColormap.from_list('fallback_cmap', [(0, 'gray'), (1, 'gray')])
+
+#     return mcolors.LinearSegmentedColormap.from_list('hinged_topo', list(zip(combined_df['pos'], combined_df['color'])))
 
 def wrap_lon(lon):
     return (lon + 180) % 360 - 180

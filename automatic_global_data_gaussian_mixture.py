@@ -31,11 +31,11 @@ downsample_factor = 1
 # PATHS & ARGV SETUP
 # ======================================================
 system = str(sys.argv[1])
-json_folder = '/Users/valeturino/postdoc_local/seafloor_json_mapping_test'
+json_folder = '/storage/home/vzt5134/work/wavelet_analysis/seafloor_json_mapping'
 json_file = os.path.join(json_folder, f'{system}.json')
 
 # New unified output infrastructure
-base_output_dir = f"/Users/valeturino/postdoc_local/wavelet_analysis_results/{system}"
+base_output_dir = f"/storage/home/vzt5134/work/wavelet_analysis/wavelet_analysis_results/{system}"
 figure_folder_1d = os.path.join(base_output_dir, "1D_analysis")
 figure_folder_2d = os.path.join(base_output_dir, "2D_analysis")
 
@@ -69,7 +69,7 @@ n = float(coords['max_lat'])
 # ======================================================
 # LOAD COARSER ML MAP
 # ======================================================
-dat_folder = f'/Users/valeturino/postdoc_local/datasets'
+dat_folder = f'/storage/home/vzt5134/work/wavelet_analysis/datasets'
 nc_file = f'{dat_folder}/bathymetry_model_Feb_2025.nc'
 
 nc_ds = xr.open_dataset(nc_file, engine="netcdf4", chunks="auto")
@@ -212,7 +212,7 @@ if results is not None:
         
 
     # Zip the entire base directory containing both separate subfolders
-    zip_name = f"/Users/valeturino/postdoc_local/wavelet_analysis_results/{system}_plots_archive"
+    zip_name = f"/storage/home/vzt5134/work/wavelet_analysis/wavelet_analysis_results/{system}_plots_archive"
     import shutil
     shutil.make_archive(zip_name, 'zip', base_output_dir)
     print(f"Executions completed. Process mappings saved successfully.")

@@ -9,8 +9,8 @@ import matplotlib.patches as mpatches
 # ======================================================
 # PARAMETERS AND FOLDERS
 # ======================================================
-json_folder = '/Users/valeturino/postdoc_local/seafloor_json_mapping_test'
-dat_folder = '/Users/valeturino/postdoc_local/datasets'
+json_folder = '/storage/home/vzt5134/work/wavelet_analysis/seafloor_json_mapping'
+dat_folder = '/storage/home/vzt5134/work/wavelet_analysis/datasets'
 nc_file = f'{dat_folder}/bathymetry_model_Feb_2025.nc'
 
 os.makedirs(json_folder, exist_ok=True)
@@ -23,15 +23,15 @@ nc_ds = xr.open_dataset(nc_file, engine="netcdf4", chunks="auto")
 lon_name = 'lon' if 'lon' in nc_ds.coords else 'longitude'
 lat_name = 'lat' if 'lat' in nc_ds.coords else 'latitude'
 
-# global_min_lon = float(nc_ds[lon_name].min())
-# global_max_lon = float(nc_ds[lon_name].max())
-# global_min_lat = float(nc_ds[lat_name].min())
-# global_max_lat = float(nc_ds[lat_name].max())
+global_min_lon = float(nc_ds[lon_name].min())
+global_max_lon = float(nc_ds[lon_name].max())
+global_min_lat = float(nc_ds[lat_name].min())
+global_max_lat = float(nc_ds[lat_name].max())
 
-global_min_lon =  -93
-global_max_lon = -89
-global_min_lat =  0
-global_max_lat = 2.8
+# global_min_lon =  -100
+# global_max_lon = -60
+# global_min_lat =  -5
+# global_max_lat = 5
 
 # Identify the bathymetry variable (e.g., 'z', 'elevation', 'topo')
 data_var = [v for v in nc_ds.data_vars if len(nc_ds[v].dims) >= 2][0]
@@ -40,7 +40,7 @@ data_var = [v for v in nc_ds.data_vars if len(nc_ds[v].dims) >= 2][0]
 # GRID CONFIGURATION (Using 20 and 2 for visualization)
 # ======================================================
 box_size = 3.0      #og 20.0
-overlap = 0.2       # og 2.0
+overlap = 0.5       # og 2.0
 step = box_size - overlap  # 18.0 degree shift between origins
 
 lon_starts = np.arange(global_min_lon, global_max_lon, step)
