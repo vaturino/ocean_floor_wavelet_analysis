@@ -5,6 +5,7 @@ include/
 pyvenv.cfg
 .venv/
 venv/
+logs/
 
 # Ignore local datasets, logs, and outputs
 *.nc
